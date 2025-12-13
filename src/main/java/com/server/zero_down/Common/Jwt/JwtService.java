@@ -19,8 +19,9 @@ public class JwtService {
     private String secret;
 
     public String generateToken(UserDetails userDetails) {
+        String subject = userDetails.getUsername();
         return Jwts.builder()
-                .setSubject(userDetails.getUsername())
+                .setSubject(subject)
                 .claim("authorities", userDetails.getAuthorities())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10 hours
@@ -42,11 +43,12 @@ public class JwtService {
     }
 
     private Claims extractClaims(String token) {
-        return Jwts.parserBuilder()
+        Claims respose = Jwts.parserBuilder()
                 .setSigningKey(getSignKey())
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
+        return respose;
     }
 
     private Key getSignKey() {
