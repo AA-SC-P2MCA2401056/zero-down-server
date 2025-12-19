@@ -64,7 +64,7 @@ public class AuthService {
         }
     }
 
-    public String register(RegisterRequest request) {
+    public SuccessResponse<?> register(RegisterRequest request) {
         if (userRepository.findByUserName(request.getUseName()) != null) {
             // In a cleaner design, throw a custom exception instead of returning text
             throw new IllegalArgumentException("Username already exists");
@@ -74,13 +74,17 @@ public class AuthService {
                 .name(request.getName())
                 .userName(request.getUseName())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(request.getRole())
+                .role(request.getRole().getCode())
                 .createdAt(LocalDateTime.now())
                 .build();
 
         userRepository.save(user);
 
-        return "User registered successfully";
+        return new SuccessResponse<>(
+                HttpStatus.OK.name(),
+                "User Registration Completed",
+                null
+        );
     }
 }
 
