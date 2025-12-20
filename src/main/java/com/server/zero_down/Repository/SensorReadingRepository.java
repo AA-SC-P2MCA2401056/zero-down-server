@@ -21,5 +21,7 @@ public interface SensorReadingRepository extends JpaRepository<SensorReading, St
     List<SensorReading> findBySensorId(String id);
 
     Optional<SensorReading> findFirstBySensor_TypeAndSensor_ActiveOrderByRecordedAtDesc(SensorType sensorType, boolean b);
+
+    boolean existsBySensorIdAndRecordedAt(String sensorId, LocalDateTime recordedAt);
 }
 

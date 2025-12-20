@@ -24,9 +24,23 @@ public class SensorReadingService {
 
     @Transactional
     public void saveReading(SensorReadingRequest request) {
-        Sensor sensor = sensorRepository.findById(request.getSensorId())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid sensorId: " + request.getSensorId()));
+        Optional<Sensor> opt = sensorRepository.findById(request.getSensorId());
 
+        if (opt.isEmpty()) {
+            System.out.println("Skipping unknown sensor: " + request.getSensorId());
+            return;
+        }
+
+        if (sensorReadingRepository.existsBySensorIdAndRecordedAt(
+                request.getSensorId(),
+                request.getRecordedAt()
+        )) {
+            System.out.println("Duplicate skipped for sensor  " + request.getSensorId());
+            return;
+        }
+
+
+        Sensor sensor = opt.get();
         SensorReading reading = new SensorReading();
         reading.setSensor(sensor);
         reading.setValue(request.getValue());
