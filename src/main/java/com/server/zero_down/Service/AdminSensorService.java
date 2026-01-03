@@ -24,7 +24,7 @@ public class AdminSensorService {
         String prefix = switch (request.getType()) {
             case TEMPERATURE -> "TEMP";
             case SOIL_MOISTURE -> "SOIL";
-            case LIGHT -> "LIGHT";
+            case LIGHT -> "LGHT";
             case HUMIDITY -> "HMDT";
         };
 

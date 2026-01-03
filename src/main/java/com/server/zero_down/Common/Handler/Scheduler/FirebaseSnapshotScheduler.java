@@ -56,18 +56,15 @@ public class FirebaseSnapshotScheduler {
 
             if (!snap.exists()) return;
 
-            Double temperature =
-                    snap.child("temperature").getValue(Double.class);
-            Double humidity =
-                    snap.child("humidity").getValue(Double.class);
+            Double temperature = snap.child("temperature").getValue(Double.class);
+            Double humidity = snap.child("humidity").getValue(Double.class);
+            Double light = snap.child("lightPercent").getValue(Double.class);
 
-            String tempSensorId =
-                    snap.child("sensorIdTemp").getValue(String.class);
-            String humSensorId =
-                    snap.child("sensorIdHum").getValue(String.class);
+            String tempSensorId = snap.child("sensorIdTemp").getValue(String.class);
+            String humSensorId = snap.child("sensorIdHum").getValue(String.class);
+            String lgtSensorId = snap.child("sensorIdLight").getValue(String.class);
 
-            Long timestamp =
-                    snap.child("timestamp").getValue(Long.class);
+            Long timestamp = snap.child("timestamp").getValue(Long.class);
 
             if (temperature == null || humidity == null || timestamp == null)
                 return;
@@ -82,18 +79,18 @@ public class FirebaseSnapshotScheduler {
             // 🔥 THREAD 1: TEMPERATURE SENSOR
             // -------------------------------
             executor.submit(() -> {
-                        System.out.println("Starting thread for TEMP on " + Thread.currentThread().getName());
-                        SensorReadingRequest tempReq = new SensorReadingRequest();
-                        tempReq.setSensorId(tempSensorId);
-                        tempReq.setValue(temperature);
-                        tempReq.setRecordedAt(recordedAt);
+                System.out.println("Starting thread for TEMP on " + Thread.currentThread().getName());
+                SensorReadingRequest tempReq = new SensorReadingRequest();
+                tempReq.setSensorId(tempSensorId);
+                tempReq.setValue(temperature);
+                tempReq.setRecordedAt(recordedAt);
 
-                        try {
-                            processor.saveReading(tempReq);
-                        } catch (Exception e) {
-                            log.error("TEMP sensor failed", e);
-                        }
-                    });
+                try {
+                    processor.saveReading(tempReq);
+                } catch (Exception e) {
+                    log.error("TEMP sensor failed", e);
+                }
+            });
 
             // -------------------------------
             // 🔥 THREAD 2: HUMIDITY SENSOR
@@ -103,6 +100,23 @@ public class FirebaseSnapshotScheduler {
                 SensorReadingRequest humReq = new SensorReadingRequest();
                 humReq.setSensorId(humSensorId);
                 humReq.setValue(humidity);
+                humReq.setRecordedAt(recordedAt);
+
+                try {
+                    processor.saveReading(humReq);
+                } catch (Exception e) {
+                    log.error("HUM sensor failed", e);
+                }
+            });
+
+            // -------------------------------
+            // 🔥 THREAD 3: LIGHT SENSOR
+            // -------------------------------
+            executor.submit(() -> {
+                System.out.println("Starting thread for LGH on " + Thread.currentThread().getName());
+                SensorReadingRequest humReq = new SensorReadingRequest();
+                humReq.setSensorId(lgtSensorId);
+                humReq.setValue(light);
                 humReq.setRecordedAt(recordedAt);
 
                 try {
