@@ -25,9 +25,6 @@ public class Greenhouse extends BaseEntity {
     @OneToMany(mappedBy = "greenhouse", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Sensor> sensors = new ArrayList<>();
 
-    @OneToMany(mappedBy = "greenhouse", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Alert> alerts = new ArrayList<>();
-
     // Getters and setters
 
 }

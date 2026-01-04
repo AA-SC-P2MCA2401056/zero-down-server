@@ -2,15 +2,24 @@ package com.server.zero_down.Service;
 
 import com.server.zero_down.Common.Enums.SensorType;
 import com.server.zero_down.Dto.Forms.SensorReadingRequest;
+import com.server.zero_down.Dto.View.LogPaginatedList;
 import com.server.zero_down.Dto.View.SensorHistoryPoint;
 import com.server.zero_down.Modal.Sensor;
 import com.server.zero_down.Modal.SensorReading;
 import com.server.zero_down.Repository.SensorReadingRepository;
 import com.server.zero_down.Repository.SensorRepository;
+import io.micrometer.common.util.StringUtils;
+import jakarta.persistence.Tuple;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StreamUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -24,9 +33,23 @@ public class SensorReadingService {
 
     @Transactional
     public void saveReading(SensorReadingRequest request) {
-        Sensor sensor = sensorRepository.findById(request.getSensorId())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid sensorId: " + request.getSensorId()));
+        Optional<Sensor> opt = sensorRepository.findById(request.getSensorId());
 
+        if (opt.isEmpty()) {
+            System.out.println("Skipping unknown sensor: " + request.getSensorId());
+            return;
+        }
+
+        if (sensorReadingRepository.existsBySensorIdAndRecordedAt(
+                request.getSensorId(),
+                request.getRecordedAt()
+        )) {
+            System.out.println("Duplicate skipped for sensor  " + request.getSensorId());
+            return;
+        }
+
+
+        Sensor sensor = opt.get();
         SensorReading reading = new SensorReading();
         reading.setSensor(sensor);
         reading.setValue(request.getValue());
@@ -37,57 +60,36 @@ public class SensorReadingService {
         sensorReadingRepository.save(reading);
     }
 
-    public List<SensorHistoryPoint> getHistory(int minutes) {
+    public LogPaginatedList<SensorHistoryPoint> getHistory(int page, int size, String to, String from) {
 
-        LocalDateTime to = LocalDateTime.now();
-        LocalDateTime from = to.minusMinutes(minutes);
+        LocalDateTime toDate = StringUtils.isBlank(to) ? LocalDateTime.now() : LocalDateTime.parse(to);
+        LocalDateTime fromDate = StringUtils.isBlank(from) ? LocalDate.now().atStartOfDay() : LocalDateTime.parse(from);
 
-        // 1️⃣ get one sensor per type
-        Map<SensorType, Sensor> sensorsByType = new EnumMap<>(SensorType.class);
+        List<Tuple> rows = sensorReadingRepository.callSensorHistorySP(fromDate, toDate, page, size);
 
-        for (SensorType type : SensorType.values()) {
-            List<Sensor> sensors = sensorRepository.findByType(type);
-            if (!sensors.isEmpty()) {
-                sensorsByType.put(type, sensors.getFirst()); // first sensor of that type
-            }
+        long total = ((Number) rows.getFirst().get("total")).longValue(); // count result
+
+        List<SensorHistoryPoint> list = new ArrayList<>();
+        for (int i = 1; i < rows.size(); i++) {
+            Tuple r = rows.get(i);
+            SensorHistoryPoint p = new SensorHistoryPoint();
+
+            p.setTime(r.get("time", Number.class).longValue());
+            p.setTemp(r.get("temp", Double.class));
+            p.setHumidity(r.get("humidity", Double.class));
+            p.setSoil(r.get("soil", Double.class));
+            p.setLight(r.get("light", Double.class));
+            p.setDate(r.get("date", java.sql.Date.class).toLocalDate());
+
+            list.add(p);
         }
 
-        // 2️⃣ time → SensorHistoryPoint map
-        Map<Long, SensorHistoryPoint> points = new TreeMap<>(); // sorted by time asc
-
-        for (Map.Entry<SensorType, Sensor> entry : sensorsByType.entrySet()) {
-            SensorType type = entry.getKey();
-            Sensor sensor = entry.getValue();
-
-            List<SensorReading> readings = sensorReadingRepository
-                    .findBySensorId(
-                            sensor.getId()
-                    );
-
-            for (SensorReading reading : readings) {
-                long timeMillis = reading.getRecordedAt()
-                        .atZone(ZoneId.systemDefault())
-                        .toInstant()
-                        .toEpochMilli();
-
-                SensorHistoryPoint point = points.computeIfAbsent(timeMillis, t -> {
-                    SensorHistoryPoint p = new SensorHistoryPoint();
-                    p.setTime(t);
-                    return p;
-                });
-                point.setDate(reading.getRecordedAt().toLocalDate());
-
-                switch (type) {
-                    case TEMPERATURE -> point.setTemp(reading.getValue());
-                    case HUMIDITY -> point.setHumidity(reading.getValue());
-                    case SOIL_MOISTURE -> point.setSoil(reading.getValue());
-                    case LIGHT -> point.setLight(reading.getValue());
-                }
-            }
-        }
-
-        // 3️⃣ convert map to list (sorted by time), and you can limit to last 20 if you want
-        return new ArrayList<>(points.values());
+        LogPaginatedList<SensorHistoryPoint> res = new LogPaginatedList<>();
+        res.setList(list);
+        res.setPage(page);
+        res.setSize(size);
+        res.setTotalPage((int) Math.ceil((double) total / size));
+        return res;
     }
 }
 

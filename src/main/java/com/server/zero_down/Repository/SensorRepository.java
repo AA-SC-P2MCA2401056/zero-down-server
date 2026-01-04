@@ -9,5 +9,7 @@ import java.util.List;
 public interface SensorRepository extends JpaRepository<Sensor, String> {
 
     List<Sensor> findByType(SensorType type);
+
+    Sensor findFirstByType(SensorType type);
 }
 

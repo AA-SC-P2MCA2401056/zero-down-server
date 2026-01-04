@@ -1,108 +1,117 @@
 package com.server.zero_down.Common.Handler;
 
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.SignatureException;
-import org.springframework.dao.DataIntegrityViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ControllerAdvice;
-import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
-@ControllerAdvice
+@Slf4j
+@RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // ------------------ 1. Handle User Not Found ------------------
-    @ExceptionHandler(UsernameNotFoundException.class)
-    public ResponseEntity<ErrorResponseHandler> handleUserNotFound(UsernameNotFoundException ex) {
-        ErrorResponseHandler error = new ErrorResponseHandler(
-                HttpStatus.NOT_FOUND.name(),
-                ex.getMessage(),
-                LocalDateTime.now()
-        );
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
-    }
-
-    // ------------------ 2. Handle Bad Credentials (login failures) ------------------
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ErrorResponseHandler> handleBadCredentials(BadCredentialsException ex) {
-        ErrorResponseHandler error = new ErrorResponseHandler(
-                HttpStatus.UNAUTHORIZED.name(),
-                "Invalid username or password",
-                LocalDateTime.now()
-        );
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
-    }
-
-    // ------------------ 3. JWT Signature / Tampering ------------------
-    @ExceptionHandler(SignatureException.class)
-    public ResponseEntity<ErrorResponseHandler> handleInvalidJwt(SignatureException ex) {
-        ErrorResponseHandler error = new ErrorResponseHandler(
-                HttpStatus.UNAUTHORIZED.name(),
-                "Invalid or tampered JWT token",
-                LocalDateTime.now()
-        );
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
-    }
-
-    // ------------------ 4. JWT Expired ------------------
-    @ExceptionHandler(ExpiredJwtException.class)
-    public ResponseEntity<ErrorResponseHandler> handleExpiredJwt(ExpiredJwtException ex) {
-        ErrorResponseHandler error = new ErrorResponseHandler(
-                HttpStatus.UNAUTHORIZED.name(),
-                "JWT token expired",
-                LocalDateTime.now()
-        );
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
-    }
-
-    // ------------------ 5. Validation Errors ------------------
+    /* -------------------------------------------------------------
+       🟥 1. Handle Validation Errors (@Valid)
+    ------------------------------------------------------------- */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponseHandler> handleValidationErrors(MethodArgumentNotValidException ex) {
-        String message = ex.getBindingResult().getAllErrors().get(0).getDefaultMessage();
+    public ResponseEntity<Object> handleValidationErrors(MethodArgumentNotValidException ex) {
 
-        ErrorResponseHandler error = new ErrorResponseHandler(
-                HttpStatus.BAD_REQUEST.name(),
-                message,
-                LocalDateTime.now()
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.BAD_REQUEST.value());
+
+        Map<String, String> errors = new HashMap<>();
+        ex.getBindingResult().getFieldErrors().forEach(err ->
+                errors.put(err.getField(), err.getDefaultMessage())
         );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+
+        body.put("errors", errors);
+        body.put("message", "Validation failed");
+
+        return ResponseEntity.badRequest().body(body);
     }
 
-    // ------------------ 6. Database Integrity Errors ------------------
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ErrorResponseHandler> handleDataIntegrityError(DataIntegrityViolationException ex) {
-        ErrorResponseHandler error = new ErrorResponseHandler(
-                HttpStatus.BAD_REQUEST.name(),
-                "Database constraint violation: " + ex.getMostSpecificCause().getMessage(),
-                LocalDateTime.now()
+    /* -------------------------------------------------------------
+       🟧 2. Handle custom application exceptions
+    ------------------------------------------------------------- */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Object> handleResourceNotFound(ResourceNotFoundException ex) {
+
+        log.warn("Resource not found: {}", ex.getMessage());
+
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                ex.getMessage()
         );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
-    // ------------------ 7. IllegalArgumentException ------------------
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponseHandler> handleIllegalArgument(IllegalArgumentException ex) {
-        ErrorResponseHandler error = new ErrorResponseHandler(
-                HttpStatus.BAD_REQUEST.name(),
-                ex.getMessage(),
-                LocalDateTime.now()
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Object> handleNoResourceNotFound(NoResourceFoundException ex) {
+
+        log.warn("Resource not found : {}", ex.getMessage());
+
+        return buildResponse(
+                HttpStatus.FORBIDDEN,
+                ex.getMessage()
         );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
-    // ------------------ 8. Catch-All Handler ------------------
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<Object> handleBadRequest(BadRequestException ex) {
+
+        log.warn("Bad request: {}", ex.getMessage());
+
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage()
+        );
+    }
+
+    /* -------------------------------------------------------------
+       🟨 3. Handle Spring's ResponseStatusException
+    ------------------------------------------------------------- */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Object> handleResponseStatusException(ResponseStatusException ex) {
+
+        log.error("Response status exception: {}", ex.getReason());
+
+        return buildResponse(
+                (HttpStatus) ex.getStatusCode(),
+                ex.getReason()
+        );
+    }
+
+    /* -------------------------------------------------------------
+       🟦 4. Handle all other unhandled exceptions
+    ------------------------------------------------------------- */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponseHandler> handleGeneralError(Exception ex) {
-        ErrorResponseHandler error = new ErrorResponseHandler(
-                HttpStatus.INTERNAL_SERVER_ERROR.name(),
-                "Something went wrong: " + ex.getMessage(),
-                LocalDateTime.now()
+    public ResponseEntity<Object> handleGenericException(Exception ex) {
+
+        log.error("Unhandled exception occurred", ex);
+
+        return buildResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "An unexpected error occurred. Please try again later."
         );
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    }
+
+    /* -------------------------------------------------------------
+       🟩 Utility method for consistent API response structure
+    ------------------------------------------------------------- */
+    private ResponseEntity<Object> buildResponse(HttpStatus status, String message) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", status.value());
+        body.put("message", message);
+
+        return new ResponseEntity<>(body, status);
     }
 }
+
