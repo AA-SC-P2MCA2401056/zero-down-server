@@ -1,6 +1,5 @@
 package com.server.zero_down.Service;
 
-import com.server.zero_down.Common.Enums.SensorType;
 import com.server.zero_down.Dto.Forms.SensorReadingRequest;
 import com.server.zero_down.Dto.View.LogPaginatedList;
 import com.server.zero_down.Dto.View.SensorHistoryPoint;
@@ -12,16 +11,10 @@ import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.Tuple;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StreamUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.*;
 
 @Service
