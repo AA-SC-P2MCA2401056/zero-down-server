@@ -12,11 +12,6 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "tb_alert")
 public class Alert extends BaseEntity {
-
-    @ManyToOne(optional = true)
-    @JoinColumn(name = "greenhouse_id")
-    private Greenhouse greenhouse;
-
     @ManyToOne
     @JoinColumn(name = "sensor_id")
     private Sensor sensor;
@@ -32,6 +27,11 @@ public class Alert extends BaseEntity {
     private boolean resolved = false;
 
     private LocalDateTime resolvedAt;
+
+    @ManyToOne
+    @JoinColumn(name = "parent_id")
+    private Alert parent;
+
 
 }
 

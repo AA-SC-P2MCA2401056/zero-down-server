@@ -1,6 +1,7 @@
 package com.server.zero_down.Controller;
 
 import com.server.zero_down.Dto.Forms.SensorReadingRequest;
+import com.server.zero_down.Dto.View.LogPaginatedList;
 import com.server.zero_down.Dto.View.SensorHistoryPoint;
 import com.server.zero_down.Service.SensorReadingService;
 import lombok.RequiredArgsConstructor;
@@ -23,10 +24,13 @@ public class SensorReadingController {
     }
 
     @GetMapping("/history")
-    public List<SensorHistoryPoint> getHistory(
-            @RequestParam(defaultValue = "20") int minutes
+    public LogPaginatedList<SensorHistoryPoint> getHistory(
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String from
     ) {
-        return sensorReadingService.getHistory(minutes);
+        return sensorReadingService.getHistory(page, size, to, from);
     }
 }
 

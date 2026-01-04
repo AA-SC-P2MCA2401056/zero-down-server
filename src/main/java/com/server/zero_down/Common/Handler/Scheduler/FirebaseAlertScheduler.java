@@ -1,9 +1,10 @@
 package com.server.zero_down.Common.Handler.Scheduler;
 
-import com.google.api.core.ApiFuture;
 import com.google.firebase.database.*;
 import com.server.zero_down.Dto.Forms.SensorReadingRequest;
+import com.server.zero_down.Service.AlertEngineService;
 import com.server.zero_down.Service.SensorReadingService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,19 +18,19 @@ import java.util.concurrent.ExecutorService;
 
 @Slf4j
 @Service
-public class FirebaseSnapshotScheduler {
+@RequiredArgsConstructor
+public class FirebaseAlertScheduler {
 
-    @Autowired
-    private ExecutorService executor;
-    @Autowired
-    private SensorReadingService processor;
+
+    private final ExecutorService executor;
+    private final AlertEngineService alertEngine;
 
     // ⏱ every 10 sec
     @Scheduled(cron = "*/10 * * * * *")
     public void captureSnapshot() {
 
         try {
-            System.out.println("......Starting snap scheduler.....");
+            System.out.println("......Starting alert scheduler.....");
             DatabaseReference ref =
                     FirebaseDatabase.getInstance()
                             .getReference("live/esp32_1");
@@ -59,27 +60,25 @@ public class FirebaseSnapshotScheduler {
             Double temperature = snap.child("temperature").getValue(Double.class);
             Double humidity = snap.child("humidity").getValue(Double.class);
             Double light = snap.child("lightPercent").getValue(Double.class);
+            Double soil = snap.child("soil").getValue(Double.class);
 
             String tempSensorId = snap.child("sensorIdTemp").getValue(String.class);
             String humSensorId = snap.child("sensorIdHum").getValue(String.class);
             String lgtSensorId = snap.child("sensorIdLight").getValue(String.class);
             String soilSensorId = snap.child("sensorIdSoil").getValue(String.class);
-            Double soil = snap.child("soil").getValue(Double.class);
 
             Long timestamp = snap.child("timestamp").getValue(Long.class);
 
             // consider ESP32 offline if no update in last 40 seconds
             long MAX_ALLOWED_DELAY = 40_000;
-
+            if (temperature == null || humidity == null)
+                return;
             if (timestamp == null ||
                     System.currentTimeMillis() - timestamp > MAX_ALLOWED_DELAY) {
 
-                log.warn("ESP32 OFFLINE / STALE — skipping snapshot update");
+                log.warn("ESP32 OFFLINE / STALE — skipping alert evaluation");
                 return;
             }
-            if (temperature == null || humidity == null)
-                return;
-
             LocalDateTime recordedAt =
                     LocalDateTime.ofInstant(
                             Instant.ofEpochMilli(timestamp),
@@ -97,7 +96,8 @@ public class FirebaseSnapshotScheduler {
                 tempReq.setRecordedAt(recordedAt);
 
                 try {
-                    processor.saveReading(tempReq);
+                    alertEngine.evaluate(tempReq);
+
                 } catch (Exception e) {
                     log.error("TEMP sensor failed", e);
                 }
@@ -114,7 +114,7 @@ public class FirebaseSnapshotScheduler {
                 humReq.setRecordedAt(recordedAt);
 
                 try {
-                    processor.saveReading(humReq);
+                    alertEngine.evaluate(humReq);
                 } catch (Exception e) {
                     log.error("HUM sensor failed", e);
                 }
@@ -124,20 +124,6 @@ public class FirebaseSnapshotScheduler {
             // 🔥 THREAD 3: LIGHT SENSOR
             // -------------------------------
             executor.submit(() -> {
-                System.out.println("Starting thread for SOIL on " + Thread.currentThread().getName());
-                SensorReadingRequest humReq = new SensorReadingRequest();
-                humReq.setSensorId(soilSensorId);
-                humReq.setValue(soil);
-                humReq.setRecordedAt(recordedAt);
-
-                try {
-                    processor.saveReading(humReq);
-                } catch (Exception e) {
-                    log.error("SOIL sensor failed", e);
-                }
-            });
-
-            executor.submit(() -> {
                 System.out.println("Starting thread for LGH on " + Thread.currentThread().getName());
                 SensorReadingRequest humReq = new SensorReadingRequest();
                 humReq.setSensorId(lgtSensorId);
@@ -145,7 +131,24 @@ public class FirebaseSnapshotScheduler {
                 humReq.setRecordedAt(recordedAt);
 
                 try {
-                    processor.saveReading(humReq);
+                    alertEngine.evaluate(humReq);
+                } catch (Exception e) {
+                    log.error("HUM sensor failed", e);
+                }
+            });
+
+            // -------------------------------
+            // 🔥 THREAD 3: SOIL SENSOR
+            // -------------------------------
+            executor.submit(() -> {
+                System.out.println("Starting thread for SOIL on " + Thread.currentThread().getName());
+                SensorReadingRequest humReq = new SensorReadingRequest();
+                humReq.setSensorId(soilSensorId);
+                humReq.setValue(soil);
+                humReq.setRecordedAt(recordedAt);
+
+                try {
+                    alertEngine.evaluate(humReq);
                 } catch (Exception e) {
                     log.error("SOIL sensor failed", e);
                 }
@@ -153,7 +156,7 @@ public class FirebaseSnapshotScheduler {
 
         } catch (Exception e) {
             e.printStackTrace();
-            log.error("scheduler for this thread skipped");
+            log.error("alert scheduler for this thread skipped");
         }
     }
 }

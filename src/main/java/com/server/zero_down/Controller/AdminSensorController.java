@@ -42,6 +42,15 @@ public class AdminSensorController {
         return ResponseEntity.ok(response);
     }
 
+    // get
+    @GetMapping("/{id}")
+    public ResponseEntity<SensorResponse> getSensorById(
+            @PathVariable String id
+    ) {
+        SensorResponse response = adminSensorService.getMeta(id);
+        return ResponseEntity.ok(response);
+    }
+
     // DELETE
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSensor(@PathVariable String id) {
