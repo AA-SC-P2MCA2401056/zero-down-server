@@ -59,8 +59,8 @@ public class FirebaseAlertScheduler {
 
             Double temperature = snap.child("temperature").getValue(Double.class);
             Double humidity = snap.child("humidity").getValue(Double.class);
-            Double light = snap.child("lightPercent").getValue(Double.class);
-            Double soil = snap.child("soil").getValue(Double.class);
+            Double light = snap.child("lightLux").getValue(Double.class);
+            Double soil = snap.child("soilPercent").getValue(Double.class);
 
             String tempSensorId = snap.child("sensorIdTemp").getValue(String.class);
             String humSensorId = snap.child("sensorIdHum").getValue(String.class);
