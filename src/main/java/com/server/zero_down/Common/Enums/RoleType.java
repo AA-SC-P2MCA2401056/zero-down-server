@@ -21,5 +21,9 @@ public enum RoleType {
     public String getAuthority() {
         return "ROLE_" + name();
     }
+
+    public int getCode() {
+        return code;
+    }
 }
 

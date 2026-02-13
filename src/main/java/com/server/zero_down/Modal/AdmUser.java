@@ -47,7 +47,7 @@ public class AdmUser implements UserDetails {
 
     @Override
     public String getUsername() {
-        return "";
+        return this.userName;
     }
 
     @Override
